@@ -62,11 +62,12 @@ public class QueuePanel extends VBox {
                     setStyle("");
                 } else {
                     setText(String.format("%s - %s", track.getTitle(), track.getArtist()));
-                    setStyle("-fx-padding: 5 10;");
                     
                     int index = getIndex();
                     if (index == currentTrackIndex) {
                         setStyle("-fx-text-fill: #4CAF50; -fx-font-weight: bold; -fx-background-color: #c8e6c9; -fx-padding: 5 10;");
+                    } else {
+                        setStyle("-fx-padding: 5 10;");
                     }
                 }
             }

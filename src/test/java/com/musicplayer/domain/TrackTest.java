@@ -116,4 +116,51 @@ class TrackTest {
         assertThat(toString).contains("Artist");
         assertThat(toString).contains("Album");
     }
+
+    @Test
+    void shouldCreateTrackWithArtwork() {
+        byte[] artwork = new byte[]{1, 2, 3, 4, 5};
+        Track track = new Track("/music/song.mp3", "Song", "Artist", "Album", Duration.ofMinutes(3), artwork);
+
+        assertThat(track.getArtwork()).isEqualTo(artwork);
+        assertThat(track.hasArtwork()).isTrue();
+    }
+
+    @Test
+    void shouldReturnNullArtworkByDefault() {
+        Track track = new Track("/music/song.mp3");
+
+        assertThat(track.getArtwork()).isNull();
+        assertThat(track.hasArtwork()).isFalse();
+    }
+
+    @Test
+    void shouldReturnFalseForEmptyArtwork() {
+        byte[] emptyArtwork = new byte[0];
+        Track track = new Track("/music/song.mp3", "Song", "Artist", "Album", Duration.ofMinutes(3), emptyArtwork);
+
+        assertThat(track.hasArtwork()).isFalse();
+    }
+
+    @Test
+    void shouldSetArtwork() {
+        Track track = new Track("/music/song.mp3");
+        byte[] artwork = new byte[]{1, 2, 3};
+
+        track.setArtwork(artwork);
+
+        assertThat(track.getArtwork()).isEqualTo(artwork);
+        assertThat(track.hasArtwork()).isTrue();
+    }
+
+    @Test
+    void shouldClearArtwork() {
+        byte[] artwork = new byte[]{1, 2, 3};
+        Track track = new Track("/music/song.mp3", "Song", "Artist", "Album", Duration.ofMinutes(3), artwork);
+
+        track.setArtwork(null);
+
+        assertThat(track.getArtwork()).isNull();
+        assertThat(track.hasArtwork()).isFalse();
+    }
 }

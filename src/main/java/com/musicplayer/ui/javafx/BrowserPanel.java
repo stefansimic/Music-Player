@@ -9,6 +9,8 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import org.slf4j.Logger;
@@ -348,18 +350,35 @@ public class BrowserPanel extends VBox {
     }
     
     private Image createPlaceholderImage() {
-        String svg = """
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-              <rect width="40" height="40" fill="#333333"/>
-              <circle cx="20" cy="15" r="8" fill="#555555"/>
-              <path d="M10 30 Q20 22 30 30 L30 38 Q20 32 10 38 Z" fill="#555555"/>
-            </svg>
-            """;
-        try {
-            return new Image(new ByteArrayInputStream(svg.getBytes("UTF-8")));
-        } catch (Exception e) {
-            return null;
+        int width = 40;
+        int height = 40;
+        WritableImage image = new WritableImage(width, height);
+        PixelWriter writer = image.getPixelWriter();
+        
+        javafx.scene.paint.Color bgColor = javafx.scene.paint.Color.rgb(80, 80, 80);
+        javafx.scene.paint.Color iconColor = javafx.scene.paint.Color.rgb(120, 120, 120);
+        
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                writer.setColor(x, y, bgColor);
+            }
         }
+        
+        int centerX = 20;
+        int centerY = 16;
+        int radius = 10;
+        for (int y = centerY - radius; y <= centerY + radius; y++) {
+            for (int x = centerX - radius; x <= centerX + radius; x++) {
+                if (y >= 0 && y < height && x >= 0 && x < width) {
+                    double dist = Math.sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
+                    if (dist <= radius) {
+                        writer.setColor(x, y, iconColor);
+                    }
+                }
+            }
+        }
+        
+        return image;
     }
     
     public record BrowserItem(String name, int trackCount, byte[] thumbnail) {

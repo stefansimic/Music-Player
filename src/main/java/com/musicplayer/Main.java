@@ -30,7 +30,7 @@ public class Main extends Application {
     private PlayerController controller;
 
     public static void main(String[] args) {
-        logger.info("Starting Music Player v1.0.0");
+        logger.info("Starting Music Player v2.0.0");
         AppConfig.load();
         launch(args);
     }
