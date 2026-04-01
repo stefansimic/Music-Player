@@ -30,7 +30,7 @@ public class PlayerController {
     private final FileService fileService;
     
     private final CopyOnWriteArrayList<PlayerStateListener> listeners = new CopyOnWriteArrayList<>();
-    private PlaybackState playbackState = PlaybackState.IDLE;
+    private volatile PlaybackState playbackState = PlaybackState.IDLE;
     
     public PlayerController(AudioService audioService, 
                            PlaylistService playlistService, 

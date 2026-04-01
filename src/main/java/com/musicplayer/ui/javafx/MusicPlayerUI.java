@@ -4,16 +4,15 @@ import com.musicplayer.application.controller.PlayerController;
 import com.musicplayer.domain.model.PlaybackState;
 import com.musicplayer.domain.model.RepeatMode;
 import com.musicplayer.domain.model.Track;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.input.DragEvent;
 import javafx.scene.input.Dragboard;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
-import javafx.scene.media.MediaPlayer;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
 import org.slf4j.Logger;
@@ -97,7 +96,10 @@ public class MusicPlayerUI extends VBox {
         openDir.setAccelerator(javafx.scene.input.KeyCombination.keyCombination("Ctrl+O"));
         
         MenuItem exit = new MenuItem("Exit");
-        exit.setOnAction(e -> Platform.exit());
+        exit.setOnAction(e -> {
+            controller.dispose();
+            Platform.exit();
+        });
         
         fileMenu.getItems().addAll(openDir, new SeparatorMenuItem(), exit);
         
@@ -182,25 +184,6 @@ public class MusicPlayerUI extends VBox {
 
     private ListView<Track> createPlaylistView() {
         ListView<Track> view = new ListView<>();
-        
-        TableColumn<Track, String> titleColumn = new TableColumn<>("Title");
-        titleColumn.setCellValueFactory(new PropertyValueFactory<>("title"));
-        titleColumn.setPrefWidth(200);
-        
-        TableColumn<Track, String> artistColumn = new TableColumn<>("Artist");
-        artistColumn.setCellValueFactory(new PropertyValueFactory<>("artist"));
-        artistColumn.setPrefWidth(150);
-        
-        TableColumn<Track, String> durationColumn = new TableColumn<>("Duration");
-        durationColumn.setPrefWidth(80);
-        durationColumn.setCellValueFactory(cellData -> {
-            Duration duration = cellData.getValue().getDuration();
-            String durationStr = duration != null ? formatDuration(duration) : "--:--";
-            return new javafx.beans.property.SimpleStringProperty(durationStr);
-        });
-        
-        TableView<Track> table = new TableView<>();
-        table.getColumns().addAll(titleColumn, artistColumn, durationColumn);
         
         view.setCellFactory(lv -> {
             ListCell<Track> cell = new ListCell<>() {
@@ -317,6 +300,17 @@ public class MusicPlayerUI extends VBox {
             }
             event.consume();
         });
+        
+        setOnKeyPressed(event -> {
+            switch (event.getCode()) {
+                case SPACE -> controller.togglePlayPause();
+                case LEFT -> controller.previous();
+                case RIGHT -> controller.next();
+                case UP -> controller.setVolume(controller.getVolume() + 0.05);
+                case DOWN -> controller.setVolume(controller.getVolume() - 0.05);
+                case M -> controller.setVolume(0);
+            }
+        });
     }
 
     private void openDirectory() {
@@ -416,17 +410,9 @@ public class MusicPlayerUI extends VBox {
         statusLabel.setText("Error: " + message);
         statusLabel.setStyle("-fx-text-fill: red;");
         
-        javafx.application.Platform.runLater(() -> {
-            new Thread(() -> {
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                javafx.application.Platform.runLater(() -> 
-                    statusLabel.setStyle("-fx-text-fill: gray;"));
-            }).start();
-        });
+        PauseTransition pause = new PauseTransition(javafx.util.Duration.seconds(5));
+        pause.setOnFinished(event -> statusLabel.setStyle("-fx-text-fill: gray;"));
+        pause.play();
     }
 
     private String formatDuration(Duration duration) {

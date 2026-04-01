@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Service for loading and managing tracks from the file system.
@@ -78,6 +79,10 @@ public class FileService {
      * @param callback callback with the loaded tracks
      */
     public void loadDirectoryAsync(Path directory, LoadCallback callback) {
+        if (callback == null) {
+            logger.warn("LoadCallback is null, skipping async load");
+            return;
+        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 return loadDirectory(directory, null);
@@ -109,6 +114,14 @@ public class FileService {
 
     public void shutdown() {
         executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     @FunctionalInterface

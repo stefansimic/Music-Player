@@ -145,7 +145,11 @@ public class JavaFxAudioPlayer implements AudioPlayer {
         if (trackDuration != null && !trackDuration.isZero()) {
             return trackDuration;
         }
-        long millis = (long) mediaPlayer.getTotalDuration().toMillis();
+        javafx.util.Duration fxDuration = mediaPlayer.getTotalDuration();
+        if (fxDuration == null || fxDuration.isUnknown() || fxDuration.lessThanOrEqualTo(javafx.util.Duration.ZERO)) {
+            return Duration.ZERO;
+        }
+        long millis = (long) fxDuration.toMillis();
         return Duration.ofMillis(millis);
     }
 
@@ -166,6 +170,14 @@ public class JavaFxAudioPlayer implements AudioPlayer {
         stop();
         stopPositionUpdates();
         scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(2, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
         if (mediaPlayer != null) {
             mediaPlayer.dispose();
             mediaPlayer = null;
