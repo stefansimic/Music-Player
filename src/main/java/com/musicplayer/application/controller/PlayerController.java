@@ -2,8 +2,10 @@ package com.musicplayer.application.controller;
 
 import com.musicplayer.application.service.AudioService;
 import com.musicplayer.application.service.FileService;
+import com.musicplayer.application.service.LibraryService;
 import com.musicplayer.application.service.PlaylistService;
 import com.musicplayer.domain.exception.PlaybackException;
+import com.musicplayer.domain.model.Library;
 import com.musicplayer.domain.model.PlaybackState;
 import com.musicplayer.domain.model.RepeatMode;
 import com.musicplayer.domain.model.Track;
@@ -13,12 +15,14 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 /**
  * Main controller (facade) for the music player.
  * 
- * Coordinates between AudioService, PlaylistService, and FileService
+ * Coordinates between AudioService, PlaylistService, FileService, and LibraryService
  * to provide a unified API for the UI layer.
  */
 public class PlayerController {
@@ -28,18 +32,27 @@ public class PlayerController {
     private final AudioService audioService;
     private final PlaylistService playlistService;
     private final FileService fileService;
+    private final LibraryService libraryService;
     
     private final CopyOnWriteArrayList<PlayerStateListener> listeners = new CopyOnWriteArrayList<>();
     private volatile PlaybackState playbackState = PlaybackState.IDLE;
     
     public PlayerController(AudioService audioService, 
                            PlaylistService playlistService, 
-                           FileService fileService) {
+                           FileService fileService,
+                           LibraryService libraryService) {
         this.audioService = audioService;
         this.playlistService = playlistService;
         this.fileService = fileService;
+        this.libraryService = libraryService;
         
         setupInternalListeners();
+    }
+    
+    public PlayerController(AudioService audioService, 
+                           PlaylistService playlistService, 
+                           FileService fileService) {
+        this(audioService, playlistService, fileService, null);
     }
 
     private void setupInternalListeners() {
@@ -269,6 +282,14 @@ public class PlayerController {
     public List<Track> getPlaylist() {
         return playlistService.getTracks();
     }
+    
+    public void setPlaylist(List<Track> tracks) {
+        if (tracks != null && !tracks.isEmpty()) {
+            playlistService.setTracks(tracks);
+            notifyPlaylistChanged(tracks);
+            logger.info("Playlist set with {} tracks", tracks.size());
+        }
+    }
 
     public int getCurrentIndex() {
         return playlistService.getCurrentIndex();
@@ -300,9 +321,132 @@ public class PlayerController {
         listeners.remove(listener);
     }
 
+    public void initializeLibrary() {
+        if (libraryService != null) {
+            Library library = libraryService.loadLibrary();
+            notifyLibraryLoaded(library);
+            
+            List<Track> tracks = convertLibraryToTracks(library);
+            if (!tracks.isEmpty()) {
+                playlistService.setTracks(tracks);
+                notifyPlaylistChanged(tracks);
+                notifyInfo("Loaded " + tracks.size() + " tracks from library");
+            }
+        }
+    }
+    
+    public CompletableFuture<Integer> addImportPath(Path path, Consumer<LibraryService.ScanProgress> progressCallback) {
+        if (libraryService == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        
+        return libraryService.addImportPath(path, (progress) -> {
+            if (progressCallback != null) {
+                progressCallback.accept(progress);
+            }
+        }).thenApply(added -> {
+            Library library = libraryService.getLibrary();
+            notifyLibraryChanged(library);
+            
+            List<Track> tracks = convertLibraryToTracks(library);
+            playlistService.setTracks(tracks);
+            notifyPlaylistChanged(tracks);
+            
+            return added;
+        });
+    }
+    
+    public void removeImportPath(Path path) {
+        if (libraryService != null) {
+            libraryService.removeImportPath(path);
+            notifyLibraryChanged(libraryService.getLibrary());
+            
+            List<Track> tracks = convertLibraryToTracks(libraryService.getLibrary());
+            playlistService.setTracks(tracks);
+            notifyPlaylistChanged(tracks);
+        }
+    }
+    
+    public List<Path> getImportPaths() {
+        if (libraryService == null) {
+            return List.of();
+        }
+        return libraryService.getLibrary().getImportPaths();
+    }
+    
+    public CompletableFuture<LibraryService.RescanResult> rescanLibrary(Consumer<LibraryService.ScanProgress> progressCallback) {
+        if (libraryService == null) {
+            return CompletableFuture.completedFuture(new LibraryService.RescanResult());
+        }
+        
+        return libraryService.rescanLibrary((progress) -> {
+            if (progressCallback != null) {
+                progressCallback.accept(progress);
+            }
+        }).thenApply(result -> {
+            Library library = libraryService.getLibrary();
+            notifyLibraryChanged(library);
+            
+            List<Track> tracks = convertLibraryToTracks(library);
+            playlistService.setTracks(tracks);
+            notifyPlaylistChanged(tracks);
+            
+            notifyInfo("Rescan complete: " + result.added + " added, " + 
+                    result.updated + " updated, " + result.removed + " removed");
+            
+            return result;
+        });
+    }
+    
+    public CompletableFuture<Integer> forceFullRescan(Consumer<LibraryService.ScanProgress> progressCallback) {
+        if (libraryService == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        
+        return libraryService.forceFullRescan((progress) -> {
+            if (progressCallback != null) {
+                progressCallback.accept(progress);
+            }
+        }).thenApply(count -> {
+            Library library = libraryService.getLibrary();
+            notifyLibraryChanged(library);
+            
+            List<Track> tracks = convertLibraryToTracks(library);
+            playlistService.setTracks(tracks);
+            notifyPlaylistChanged(tracks);
+            
+            notifyInfo("Full rescan complete: " + count + " tracks");
+            
+            return count;
+        });
+    }
+    
+    public Library getLibrary() {
+        if (libraryService == null) {
+            return null;
+        }
+        return libraryService.getLibrary();
+    }
+    
+    private List<Track> convertLibraryToTracks(Library library) {
+        return library.getEntries().stream()
+                .map(entry -> new Track(
+                        entry.path().toString(),
+                        entry.title(),
+                        entry.artist(),
+                        entry.album(),
+                        entry.duration()
+                ))
+                .toList();
+    }
+
     public void dispose() {
         audioService.dispose();
         fileService.shutdown();
+        if (libraryService != null) {
+            libraryService.saveLibrary();
+            libraryService.shutdown();
+        }
         listeners.clear();
         logger.info("PlayerController disposed");
     }
@@ -410,6 +554,26 @@ public class PlayerController {
             }
         }
     }
+    
+    private void notifyLibraryLoaded(Library library) {
+        for (PlayerStateListener listener : listeners) {
+            try {
+                listener.onLibraryLoaded(library);
+            } catch (Exception e) {
+                logger.error("Error notifying library loaded listener", e);
+            }
+        }
+    }
+    
+    private void notifyLibraryChanged(Library library) {
+        for (PlayerStateListener listener : listeners) {
+            try {
+                listener.onLibraryChanged(library);
+            } catch (Exception e) {
+                logger.error("Error notifying library changed listener", e);
+            }
+        }
+    }
 
     public interface PlayerStateListener {
         void onPlaybackStateChanged(PlaybackState state);
@@ -420,5 +584,7 @@ public class PlayerController {
         void onPlaybackModeChanged(RepeatMode repeatMode, boolean shuffled);
         void onError(String message);
         void onInfo(String message);
+        void onLibraryLoaded(Library library);
+        void onLibraryChanged(Library library);
     }
 }

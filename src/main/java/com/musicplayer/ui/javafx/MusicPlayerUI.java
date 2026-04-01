@@ -1,6 +1,7 @@
 package com.musicplayer.ui.javafx;
 
 import com.musicplayer.application.controller.PlayerController;
+import com.musicplayer.domain.model.Library;
 import com.musicplayer.domain.model.PlaybackState;
 import com.musicplayer.domain.model.RepeatMode;
 import com.musicplayer.domain.model.Track;
@@ -21,20 +22,29 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
- * Main JavaFX UI for the Music Player application.
+ * Main JavaFX UI for the Music Player application (v2.0).
+ * 
+ * Uses a BorderPane layout with:
+ * - Left: Collapsible QueuePanel
+ * - Center: BrowserPanel for Albums/Artists/Playlists/Genres
+ * - Bottom: ControlsPanel with playback controls
+ * - Bottom-Right: ArtworkPanel for album art
  */
-public class MusicPlayerUI extends VBox {
+public class MusicPlayerUI extends BorderPane {
     
     private static final Logger logger = LoggerFactory.getLogger(MusicPlayerUI.class);
     
     private final PlayerController controller;
     
-    private ListView<Track> playlistView;
+    private QueuePanel queuePanel;
+    private BrowserPanel browserPanel;
+    private ArtworkPanel artworkPanel;
+    
     private Label titleLabel;
     private Label artistLabel;
-    private Label albumLabel;
     private Slider progressSlider;
     private Label currentTimeLabel;
     private Label totalTimeLabel;
@@ -45,49 +55,41 @@ public class MusicPlayerUI extends VBox {
     private Button shuffleButton;
     private Button repeatButton;
     private Label statusLabel;
-    
+
     public MusicPlayerUI(PlayerController controller) {
         this.controller = controller;
         setupUI();
         setupEventHandlers();
         setupDragAndDrop();
+        
+        controller.initializeLibrary();
     }
 
     private void setupUI() {
-        setSpacing(10);
-        setPadding(new Insets(15));
-        setAlignment(Pos.CENTER);
+        setStyle("-fx-background-color: #f5f5f5;");
         
         MenuBar menuBar = createMenuBar();
+        setTop(menuBar);
         
-        VBox trackInfoBox = createTrackInfoPanel();
+        queuePanel = new QueuePanel();
+        queuePanel.setOnTrackDoubleClicked((track, index) -> controller.playTrack(index));
+        setLeft(queuePanel);
         
-        HBox progressBox = createProgressPanel();
+        browserPanel = new BrowserPanel();
+        browserPanel.setOnCategorySelected((category, item, tracks) -> browserPanel.showNowPlaying(item.name(), tracks));
+        browserPanel.setOnStartPlaylist(this::startPlaylist);
         
-        HBox controlsBox = createControlsPanel();
+        setCenter(browserPanel);
         
-        HBox volumeBox = createVolumePanel();
+        VBox bottomPanel = createBottomPanel();
+        setBottom(bottomPanel);
         
-        playlistView = createPlaylistView();
-        
-        statusLabel = new Label("Ready");
-        statusLabel.setStyle("-fx-text-fill: gray;");
-        
-        getChildren().addAll(
-            menuBar,
-            trackInfoBox,
-            progressBox,
-            controlsBox,
-            volumeBox,
-            playlistView,
-            statusLabel
-        );
-        
-        VBox.setVgrow(playlistView, Priority.ALWAYS);
-        
-        setStyle("-fx-font-family: 'System', 'Arial Unicode MS', 'Lucida Grande', sans-serif;");
+        artworkPanel = new ArtworkPanel(120);
+        StackPane artworkContainer = new StackPane(artworkPanel);
+        artworkContainer.setPadding(new Insets(0, 10, 10, 0));
+        setRight(artworkContainer);
     }
-
+    
     private MenuBar createMenuBar() {
         Menu fileMenu = new Menu("File");
         
@@ -95,13 +97,20 @@ public class MusicPlayerUI extends VBox {
         openDir.setOnAction(e -> openDirectory());
         openDir.setAccelerator(javafx.scene.input.KeyCombination.keyCombination("Ctrl+O"));
         
+        MenuItem rescan = new MenuItem("Rescan Library");
+        rescan.setOnAction(e -> rescanLibrary());
+        
+        MenuItem fullRescan = new MenuItem("Full Rescan");
+        fullRescan.setOnAction(e -> forceFullRescan());
+        
         MenuItem exit = new MenuItem("Exit");
         exit.setOnAction(e -> {
             controller.dispose();
             Platform.exit();
         });
         
-        fileMenu.getItems().addAll(openDir, new SeparatorMenuItem(), exit);
+        fileMenu.getItems().addAll(openDir, new SeparatorMenuItem(), rescan, fullRescan, 
+                new SeparatorMenuItem(), exit);
         
         Menu helpMenu = new Menu("Help");
         MenuItem about = new MenuItem("About");
@@ -110,7 +119,39 @@ public class MusicPlayerUI extends VBox {
         
         return new MenuBar(fileMenu, helpMenu);
     }
-
+    
+    private VBox createBottomPanel() {
+        VBox panel = new VBox(10);
+        panel.setPadding(new Insets(15));
+        panel.setBackground(new Background(new BackgroundFill(
+                javafx.scene.paint.Color.rgb(220, 220, 220), 
+                new CornerRadii(0), Insets.EMPTY)));
+        
+        VBox trackInfoBox = createTrackInfoPanel();
+        
+        HBox progressBox = createProgressPanel();
+        
+        createControlsPanel();
+        
+        HBox volumeBox = createVolumePanel();
+        
+        statusLabel = new Label("Ready");
+        statusLabel.setStyle("-fx-text-fill: #888888;");
+        
+        HBox controlsRow = new HBox(20);
+        controlsRow.setAlignment(Pos.CENTER);
+        controlsRow.getChildren().addAll(shuffleButton, previousButton, playPauseButton, 
+                nextButton, repeatButton);
+        
+        HBox bottomRow = new HBox();
+        bottomRow.setAlignment(Pos.CENTER);
+        bottomRow.getChildren().addAll(volumeBox, new Region());
+        
+        panel.getChildren().addAll(trackInfoBox, progressBox, controlsRow, bottomRow, statusLabel);
+        
+        return panel;
+    }
+    
     private VBox createTrackInfoPanel() {
         VBox box = new VBox(5);
         box.setAlignment(Pos.CENTER);
@@ -119,15 +160,12 @@ public class MusicPlayerUI extends VBox {
         titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
         
         artistLabel = new Label("");
-        artistLabel.setStyle("-fx-font-size: 14px;");
+        artistLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #666666;");
         
-        albumLabel = new Label("");
-        albumLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: gray;");
-        
-        box.getChildren().addAll(titleLabel, artistLabel, albumLabel);
+        box.getChildren().addAll(titleLabel, artistLabel);
         return box;
     }
-
+    
     private HBox createProgressPanel() {
         HBox box = new HBox(10);
         box.setAlignment(Pos.CENTER);
@@ -145,30 +183,24 @@ public class MusicPlayerUI extends VBox {
         box.getChildren().addAll(currentTimeLabel, progressSlider, totalTimeLabel);
         return box;
     }
-
-    private HBox createControlsPanel() {
-        HBox box = new HBox(15);
-        box.setAlignment(Pos.CENTER);
-        
+    
+    private void createControlsPanel() {
         previousButton = new Button("⏮");
-        previousButton.setStyle("-fx-font-size: 20px;");
+        previousButton.setStyle("-fx-font-size: 20px; -fx-background-color: transparent;");
         
         playPauseButton = new Button("▶");
-        playPauseButton.setStyle("-fx-font-size: 30px;");
+        playPauseButton.setStyle("-fx-font-size: 30px; -fx-background-color: transparent;");
         
         nextButton = new Button("⏭");
-        nextButton.setStyle("-fx-font-size: 20px;");
+        nextButton.setStyle("-fx-font-size: 20px; -fx-background-color: transparent;");
         
         shuffleButton = new Button("🔀");
-        shuffleButton.setStyle("-fx-font-size: 16px;");
+        shuffleButton.setStyle("-fx-font-size: 16px; -fx-background-color: transparent;");
         
         repeatButton = new Button("🔁");
-        repeatButton.setStyle("-fx-font-size: 16px;");
-        
-        box.getChildren().addAll(shuffleButton, previousButton, playPauseButton, nextButton, repeatButton);
-        return box;
+        repeatButton.setStyle("-fx-font-size: 16px; -fx-background-color: transparent;");
     }
-
+    
     private HBox createVolumePanel() {
         HBox box = new HBox(10);
         box.setAlignment(Pos.CENTER);
@@ -180,35 +212,6 @@ public class MusicPlayerUI extends VBox {
         
         box.getChildren().addAll(volumeIcon, volumeSlider);
         return box;
-    }
-
-    private ListView<Track> createPlaylistView() {
-        ListView<Track> view = new ListView<>();
-        
-        view.setCellFactory(lv -> {
-            ListCell<Track> cell = new ListCell<>() {
-                @Override
-                protected void updateItem(Track track, boolean empty) {
-                    super.updateItem(track, empty);
-                    if (empty || track == null) {
-                        setText(null);
-                    } else {
-                        setText(String.format("%s - %s", track.getTitle(), track.getArtist()));
-                    }
-                }
-            };
-            
-            cell.setOnMouseClicked(event -> {
-                if (event.getClickCount() == 2 && !cell.isEmpty()) {
-                    int index = cell.getIndex();
-                    controller.playTrack(index);
-                }
-            });
-            
-            return cell;
-        });
-        
-        return view;
     }
 
     private void setupEventHandlers() {
@@ -242,7 +245,10 @@ public class MusicPlayerUI extends VBox {
 
             @Override
             public void onTrackChanged(Track track) {
-                Platform.runLater(() -> updateTrackInfo(track));
+                Platform.runLater(() -> {
+                    updateTrackInfo(track);
+                    queuePanel.setCurrentTrackIndex(controller.getCurrentIndex());
+                });
             }
 
             @Override
@@ -257,7 +263,10 @@ public class MusicPlayerUI extends VBox {
 
             @Override
             public void onPlaylistChanged(List<Track> playlist) {
-                Platform.runLater(() -> updatePlaylist(playlist));
+                Platform.runLater(() -> {
+                    queuePanel.setTracks(playlist);
+                    browserPanel.setTracks(playlist);
+                });
             }
 
             @Override
@@ -277,9 +286,42 @@ public class MusicPlayerUI extends VBox {
             public void onInfo(String message) {
                 Platform.runLater(() -> statusLabel.setText(message));
             }
+
+            @Override
+            public void onLibraryLoaded(Library library) {
+                Platform.runLater(() -> {
+                    browserPanel.setLibrary(library);
+                    List<Track> tracks = convertLibraryToTracks(library);
+                    queuePanel.setTracks(tracks);
+                    browserPanel.setTracks(tracks);
+                });
+            }
+
+            @Override
+            public void onLibraryChanged(Library library) {
+                Platform.runLater(() -> {
+                    browserPanel.setLibrary(library);
+                    List<Track> tracks = convertLibraryToTracks(library);
+                    queuePanel.setTracks(tracks);
+                    browserPanel.setTracks(tracks);
+                });
+            }
         });
         
         volumeSlider.setValue(controller.getVolume() * 100);
+    }
+    
+    private List<Track> convertLibraryToTracks(Library library) {
+        if (library == null) return List.of();
+        return library.getEntries().stream()
+                .map(entry -> new Track(
+                        entry.path().toString(),
+                        entry.title(),
+                        entry.artist(),
+                        entry.album(),
+                        entry.duration()
+                ))
+                .toList();
     }
 
     private void setupDragAndDrop() {
@@ -295,7 +337,7 @@ public class MusicPlayerUI extends VBox {
             if (db.hasFiles()) {
                 Path dir = db.getFiles().get(0).toPath();
                 if (dir.toFile().isDirectory()) {
-                    controller.loadDirectory(dir);
+                    controller.addImportPath(dir, null);
                 }
             }
             event.consume();
@@ -321,15 +363,29 @@ public class MusicPlayerUI extends VBox {
         java.io.File result = chooser.showDialog(stage);
         
         if (result != null) {
-            controller.loadDirectory(result.toPath());
+            controller.addImportPath(result.toPath(), null);
         }
+    }
+    
+    private void rescanLibrary() {
+        statusLabel.setText("Scanning for changes...");
+        controller.rescanLibrary(progress -> {
+            logger.debug("Scan progress: {}/{} - {}", progress.current(), progress.total(), progress.currentFile());
+        });
+    }
+    
+    private void forceFullRescan() {
+        statusLabel.setText("Full rescan in progress...");
+        controller.forceFullRescan(progress -> {
+            logger.debug("Full rescan: {}", progress.currentFile());
+        });
     }
 
     private void showAbout() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("About Music Player");
-        alert.setHeaderText("Music Player v1.0.0");
-        alert.setContentText("A simple music player for MP3 files.\n\nBuilt with Java and JavaFX.");
+        alert.setHeaderText("Music Player v2.0.0");
+        alert.setContentText("A music player for MP3 files with library management.\n\nBuilt with Java and JavaFX.");
         alert.showAndWait();
     }
 
@@ -354,21 +410,24 @@ public class MusicPlayerUI extends VBox {
         if (track != null) {
             titleLabel.setText(track.getTitle());
             artistLabel.setText(track.getArtist());
-            albumLabel.setText(track.getAlbum());
-            
-            int currentIndex = controller.getCurrentIndex();
-            highlightCurrentTrack(currentIndex);
+            if (artworkPanel != null) {
+                artworkPanel.setPlaceholder();
+            }
         } else {
             titleLabel.setText("No track loaded");
             artistLabel.setText("");
-            albumLabel.setText("");
+            if (artworkPanel != null) {
+                artworkPanel.clear();
+            }
         }
     }
-
-    private void highlightCurrentTrack(int index) {
-        if (index >= 0 && index < playlistView.getItems().size()) {
-            playlistView.getSelectionModel().select(index);
-            playlistView.scrollTo(index);
+    
+    private void startPlaylist(List<Track> tracks) {
+        if (!tracks.isEmpty()) {
+            controller.setPlaylist(tracks);
+            queuePanel.setTracks(tracks);
+            controller.playTrack(0);
+            statusLabel.setText("Playing: " + tracks.size() + " tracks");
         }
     }
 
@@ -384,11 +443,6 @@ public class MusicPlayerUI extends VBox {
         }
     }
 
-    private void updatePlaylist(List<Track> playlist) {
-        playlistView.getItems().clear();
-        playlistView.getItems().addAll(playlist);
-    }
-
     private void updateRepeatButton() {
         RepeatMode mode = controller.getRepeatMode();
         repeatButton.setText(switch (mode) {
@@ -396,22 +450,19 @@ public class MusicPlayerUI extends VBox {
             case ALL -> "🔁";
             case ONE -> "🔂";
         });
-        repeatButton.setStyle("-fx-font-size: 16px; " + 
-            (mode == RepeatMode.OFF ? "" : "-fx-opacity: 1.0; -fx-background-color: #e0e0e0;"));
     }
 
     private void updateShuffleButton() {
         boolean shuffled = controller.isShuffled();
-        shuffleButton.setStyle("-fx-font-size: 16px; " + 
-            (shuffled ? "-fx-opacity: 1.0; -fx-background-color: #e0e0e0;" : ""));
+        shuffleButton.setOpacity(shuffled ? 1.0 : 0.5);
     }
 
     private void showError(String message) {
         statusLabel.setText("Error: " + message);
-        statusLabel.setStyle("-fx-text-fill: red;");
+        statusLabel.setStyle("-fx-text-fill: #ff5555;");
         
-        PauseTransition pause = new PauseTransition(javafx.util.Duration.seconds(5));
-        pause.setOnFinished(event -> statusLabel.setStyle("-fx-text-fill: gray;"));
+        PauseTransition pause = new PauseTransition(javafx.util.Duration.millis(5000));
+        pause.setOnFinished(event -> statusLabel.setStyle("-fx-text-fill: #888888;"));
         pause.play();
     }
 
@@ -424,5 +475,4 @@ public class MusicPlayerUI extends VBox {
         seconds = seconds % 60;
         return String.format("%d:%02d", minutes, seconds);
     }
-
 }

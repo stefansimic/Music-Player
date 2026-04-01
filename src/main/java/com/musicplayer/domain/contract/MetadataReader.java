@@ -17,8 +17,16 @@ public interface MetadataReader {
      * @param artist   the artist name
      * @param album    the album name
      * @param duration the track duration
+     * @param artwork  the album artwork bytes (may be null)
      */
-    record TrackMetadata(String title, String artist, String album, Duration duration) {
+    record TrackMetadata(String title, String artist, String album, Duration duration, byte[] artwork) {
+        
+        /**
+         * Creates metadata without artwork for backward compatibility.
+         */
+        public TrackMetadata(String title, String artist, String album, Duration duration) {
+            this(title, artist, album, duration, null);
+        }
         
         /**
          * Returns the title, or "Unknown" if empty.
@@ -40,6 +48,13 @@ public interface MetadataReader {
         public String album() {
             return (album != null && !album.isBlank()) ? album : "Unknown";
         }
+        
+        /**
+         * Returns whether this metadata has artwork.
+         */
+        public boolean hasArtwork() {
+            return artwork != null && artwork.length > 0;
+        }
     }
 
     /**
@@ -50,4 +65,13 @@ public interface MetadataReader {
      * @throws MetadataException if metadata cannot be read
      */
     TrackMetadata read(Path filePath) throws MetadataException;
+    
+    /**
+     * Reads album artwork from an audio file.
+     *
+     * @param filePath the path to the audio file
+     * @return the artwork bytes, or null if no artwork available
+     * @throws MetadataException if artwork cannot be read
+     */
+    byte[] readArtwork(Path filePath) throws MetadataException;
 }

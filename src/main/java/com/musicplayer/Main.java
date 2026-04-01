@@ -3,13 +3,16 @@ package com.musicplayer;
 import com.musicplayer.application.controller.PlayerController;
 import com.musicplayer.application.service.AudioService;
 import com.musicplayer.application.service.FileService;
+import com.musicplayer.application.service.LibraryService;
 import com.musicplayer.application.service.PlaylistService;
 import com.musicplayer.domain.contract.AudioPlayer;
 import com.musicplayer.domain.contract.FileScanner;
+import com.musicplayer.domain.contract.LibraryRepository;
 import com.musicplayer.domain.contract.MetadataReader;
 import com.musicplayer.infrastructure.audio.JavaFxAudioPlayer;
 import com.musicplayer.infrastructure.filesystem.NioFileScanner;
 import com.musicplayer.infrastructure.metadata.JAudioTaggerMetadataReader;
+import com.musicplayer.infrastructure.persistence.JsonLibraryRepository;
 import com.musicplayer.ui.javafx.MusicPlayerUI;
 import javafx.application.Application;
 import javafx.scene.Scene;
@@ -62,6 +65,7 @@ public class Main extends Application {
         AudioPlayer audioPlayer = new JavaFxAudioPlayer();
         FileScanner fileScanner = new NioFileScanner();
         MetadataReader metadataReader = new JAudioTaggerMetadataReader();
+        LibraryRepository libraryRepository = new JsonLibraryRepository();
         
         AudioService audioService = new AudioService(audioPlayer);
         PlaylistService playlistService = new PlaylistService();
@@ -70,10 +74,15 @@ public class Main extends Application {
             metadataReader, 
             AppConfig.isRecursiveScanning()
         );
+        LibraryService libraryService = new LibraryService(
+            libraryRepository,
+            fileScanner,
+            metadataReader
+        );
         
         audioService.setVolume(AppConfig.getVolumeDefault());
         
-        controller = new PlayerController(audioService, playlistService, fileService);
+        controller = new PlayerController(audioService, playlistService, fileService, libraryService);
     }
 
     @Override

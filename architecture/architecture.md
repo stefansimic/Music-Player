@@ -1,6 +1,6 @@
 # Music Player - Architecture Document
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Date:** 2026-04-01  
 **Status:** Draft
 
@@ -92,19 +92,22 @@ src/main/java/com/musicplayer/
 │   ├── model/
 │   │   ├── Track.java              # Track entity
 │   │   ├── Playlist.java            # Playlist/Queue entity
-│   │   └── RepeatMode.java         # Repeat mode enum
+│   │   ├── RepeatMode.java         # Repeat mode enum
+│   │   └── Library.java            # Library model (v2.0)
 │   │
 │   └── contract/
 │       ├── AudioPlayer.java        # Audio playback contract
 │       ├── FileScanner.java         # File discovery contract
-│       └── MetadataReader.java      # Metadata extraction contract
+│       ├── MetadataReader.java      # Metadata extraction contract
+│       └── LibraryRepository.java   # Library persistence contract (v2.0)
 │
 ├── application/
 │   ├── service/
 │   │   ├── AudioService.java       # Playback orchestration
 │   │   ├── PlaylistService.java     # Queue, shuffle, repeat
 │   │   ├── FileService.java         # Directory import logic
-│   │   └── MetadataService.java     # Metadata reading
+│   │   ├── MetadataService.java     # Metadata reading
+│   │   └── LibraryService.java      # Library persistence (v2.0)
 │   │
 │   └── controller/
 │       └── PlayerController.java    # Facade for UI
@@ -116,17 +119,19 @@ src/main/java/com/musicplayer/
 │   ├── filesystem/
 │   │   └── NioFileScanner.java      # NIO file discovery
 │   │
-│   └── metadata/
-│       └── JAudioTaggerReader.java   # ID3 tag reading
+│   ├── metadata/
+│   │   └── JAudioTaggerReader.java   # ID3 tag reading (v2.0: + artwork)
+│   │
+│   └── persistence/
+│       └── JsonLibraryRepository.java # JSON library storage (v2.0)
 │
 └── ui/
-    ├── swing/
-    │   ├── MainFrame.java
-    │   ├── PlayerPanel.java
-    │   └── PlaylistPanel.java
-    │
-    └── cli/
-        └── CliPlayer.java
+    └── javafx/
+        ├── MusicPlayerUI.java       # Main JavaFX UI (v2.0: redesigned layout)
+        ├── BrowserPanel.java        # Browse by Albums/Artists/Playlists (v2.0)
+        ├── QueuePanel.java          # Collapsible queue panel (v2.0)
+        ├── ControlsPanel.java       # Playback controls (v2.0)
+        └── ArtworkPanel.java        # Album artwork display (v2.0)
 ```
 
 ---
@@ -143,6 +148,8 @@ public class Track {
     private String artist;              // From ID3 tag
     private String album;               // From ID3 tag
     private Duration duration;          // From metadata
+    private byte[] artwork;             // Album artwork bytes (v2.0)
+    private long lastModified;           // File modification timestamp for change detection (v2.0)
 }
 ```
 
@@ -164,6 +171,25 @@ public enum RepeatMode {
     ALL,    // Loop back to first
     ONE     // Repeat current track
 }
+```
+
+#### Library (v2.0)
+```java
+public class Library {
+    private List<Path> importPaths;     // Monitored directory paths
+    private List<LibraryEntry> entries;  // Tracks with cached metadata
+    private long lastScanTimestamp;      // Last full scan time
+}
+
+public record LibraryEntry(
+    Path path,
+    String title,
+    String artist,
+    String album,
+    Duration duration,
+    byte[] artwork,
+    long lastModified
+) {}
 ```
 
 ### 4.2 Contracts (Interfaces)
@@ -199,9 +225,30 @@ public interface FileScanner {
 ```java
 public interface MetadataReader {
     TrackMetadata read(Path filePath) throws MetadataException;
+    byte[] readArtwork(Path filePath) throws MetadataException;  // v2.0
 }
 
-public record TrackMetadata(String title, String artist, String album, Duration duration) {}
+public record TrackMetadata(
+    String title,
+    String artist,
+    String album,
+    Duration duration,
+    byte[] artwork  // v2.0: included in metadata
+) {}
+```
+
+#### LibraryRepository (v2.0)
+```java
+public interface LibraryRepository {
+    void save(Library library) throws LibraryStorageException;
+    Library load() throws LibraryStorageException;
+    boolean exists();
+    void delete() throws LibraryStorageException;
+}
+
+public class LibraryStorageException extends MusicPlayerException {
+    // Thrown when library save/load operations fail
+}
 ```
 
 ---
@@ -218,6 +265,7 @@ public class PlayerController {
     private final PlaylistService playlistService;
     private final FileService fileService;
     private final MetadataService metadataService;
+    private final LibraryService libraryService;  // v2.0
     
     // Playback control
     public void play() { }
@@ -233,6 +281,13 @@ public class PlayerController {
     public void playTrack(int index) { }
     public void setRepeatMode(RepeatMode mode) { }
     public void toggleShuffle() { }
+    
+    // Library control (v2.0)
+    public void addImportPath(Path path) { }
+    public void removeImportPath(Path path) { }
+    public List<Path> getImportPaths() { }
+    public void rescanLibrary() { }  // Force full rescan
+    public Library getLibrary() { }
     
     // State access
     public Track getCurrentTrack() { }
@@ -252,6 +307,7 @@ public class PlayerController {
 | `PlaylistService` | Queue management, shuffle, repeat mode logic |
 | `FileService` | Recursive directory scanning, sorting |
 | `MetadataService` | Batch metadata reading, error handling |
+| `LibraryService` | Library persistence, incremental rescan (v2.0) |
 
 ---
 
@@ -312,40 +368,102 @@ public class JAudioTaggerReader implements MetadataReader {
             AudioFile audioFile = AudioFileIO.read(filePath.toFile());
             AudioHeader header = audioFile.getAudioHeader();
             Tag tag = audioFile.getTag();
+            byte[] artwork = extractArtwork(tag);  // v2.0
             
             return new TrackMetadata(
                 tag.getFirst(FieldKey.TITLE),
                 tag.getFirst(FieldKey.ARTIST),
                 tag.getFirst(FieldKey.ALBUM),
-                Duration.ofSeconds(header.getTrackLength())
+                Duration.ofSeconds(header.getTrackLength()),
+                artwork  // v2.0
             );
         } catch (Exception e) {
             throw new MetadataException("Failed to read metadata", e);
         }
+    }
+    
+    @Override
+    public byte[] readArtwork(Path filePath) throws MetadataException {
+        // Extract album artwork from ID3 tag
+        // Returns null if no artwork available
+    }
+}
+```
+
+### 6.4 JSON Library Repository (v2.0)
+
+JSON-based implementation for library persistence.
+
+```java
+public class JsonLibraryRepository implements LibraryRepository {
+    private static final Path LIBRARY_FILE = 
+        Paths.get(System.getProperty("user.home"), ".musicplayer", "library.json");
+    
+    private final ObjectMapper objectMapper;
+    private final FileService fileService;
+    
+    @Override
+    public void save(Library library) throws LibraryStorageException {
+        // Backup existing file
+        // Write new library JSON atomically
+        // Use pretty printing for human readability
+    }
+    
+    @Override
+    public Library load() throws LibraryStorageException {
+        // Read and deserialize JSON
+        // Validate entries
+        // Return empty library if file doesn't exist
+    }
+    
+    @Override
+    public boolean exists() {
+        return Files.exists(LIBRARY_FILE);
+    }
+    
+    @Override
+    public void delete() throws LibraryStorageException {
+        Files.deleteIfExists(LIBRARY_FILE);
     }
 }
 ```
 
 ---
 
-## 7. UI Layer
+## 7. UI Layer (v2.0)
 
-### 7.1 Swing UI Structure
+### 7.1 JavaFX UI Structure (v2.0)
+
+New layout with BorderPane structure:
 
 ```
-MainFrame (JFrame)
-├── MenuBar
-│   ├── File Menu → Open Directory
-│   └── Playback Menu
+MusicPlayerUI (BorderPane)
 │
-├── PlayerPanel
-│   ├── TrackInfoPanel (title, artist, album)
-│   ├── ProgressPanel (JSlider, time labels)
-│   ├── ControlsPanel (prev, play/pause, next)
-│   └── VolumePanel (slider, mute)
+├── LEFT: QueuePanel (collapsible)
+│   ├── ToggleButton (collapse/expand)
+│   ├── TrackListView
+│   │   └── TrackCell (title, artist, duration)
+│   └── Current track highlighted
 │
-└── PlaylistPanel (JList)
-    └── Track list with current track highlighted
+├── CENTER: BrowserPanel
+│   ├── TabPane
+│   │   ├── Albums tab
+│   │   ├── Artists tab
+│   │   ├── Playlists tab (folders as playlists)
+│   │   └── Genres tab
+│   └── Content area for selected category
+│
+├── BOTTOM: ControlsPanel
+│   ├── TrackInfoLabel (title - artist)
+│   ├── ProgressBar (with seeking)
+│   ├── TimeLabels (current / total)
+│   ├── ControlsHBox (prev, play/pause, next)
+│   ├── ModeButtons (shuffle, repeat)
+│   └── VolumeSlider
+│
+└── BOTTOM-RIGHT: ArtworkPanel
+    ├── ImageView (album art)
+    └── PlaceholderImage (when no art)
 ```
 
 ### 7.2 UI-Domain Communication
@@ -359,7 +477,71 @@ public interface PlayerStateListener {
     void onProgressChanged(Duration position, Duration duration);
     void onVolumeChanged(double volume);
     void onPlaylistChanged(List<Track> playlist);
+    void onLibraryChanged(Library library);  // v2.0
     void onError(String message);
+}
+```
+
+### 7.3 Queue Panel (v2.0)
+
+Collapsible queue panel on left side:
+
+```java
+public class QueuePanel extends VBox {
+    private final ToggleButton collapseButton;
+    private final ListView<Track> trackList;
+    private boolean isCollapsed;
+    
+    public void toggleCollapse() {
+        // Animate width transition
+        // Toggle between expanded (250px) and collapsed (40px)
+    }
+}
+```
+
+### 7.4 Browser Panel (v2.0)
+
+Browse music by category:
+
+```java
+public class BrowserPanel extends VBox {
+    private final TabPane tabPane;
+    private final AlbumBrowser albumsTab;
+    private final ArtistBrowser artistsTab;
+    private final PlaylistBrowser playlistsTab;  // Folders treated as playlists
+    private final GenreBrowser genresTab;
+}
+
+public interface BrowserCategory {
+    String getName();
+    List<BrowserItem> getItems();  // Albums, Artists, Playlists, Genres
+    void onItemSelected(BrowserItem item);
+}
+
+public record BrowserItem(
+    String name,
+    int trackCount,
+    Image thumbnail  // Album art or placeholder
+) {}
+```
+
+### 7.5 Artwork Panel (v2.0)
+
+Album artwork display with fallback:
+
+```java
+public class ArtworkPanel extends VBox {
+    private final ImageView imageView;
+    private static final Image PLACEHOLDER_IMAGE;
+    
+    public void setArtwork(byte[] artworkBytes) {
+        if (artworkBytes != null && artworkBytes.length > 0) {
+            Image image = new Image(new ByteArrayInputStream(artworkBytes));
+            imageView.setImage(image);
+        } else {
+            imageView.setImage(PLACEHOLDER_IMAGE);
+        }
+    }
 }
 ```
 
@@ -446,6 +628,7 @@ Application Layer
 |---------|---------|---------|
 | JavaFX Media | Built-in (Java 21) | Audio playback |
 | JAudioTagger | 3.0.1 | MP3 metadata (ID3 tags) |
+| Jackson | 2.16.1 | JSON serialization for library persistence (v2.0) |
 | SLF4J | 2.0.13 | Logging facade |
 | Logback | 1.5.6 | Logging implementation |
 | JUnit | 5.10.2 | Testing |
@@ -460,6 +643,13 @@ Application Layer
     <artifactId>jaudiotagger</artifactId>
     <version>3.0.1</version>
 </dependency>
+
+<!-- v2.0: JSON serialization for library persistence -->
+<dependency>
+    <groupId>com.fasterxml.jackson.core</groupId>
+    <artifactId>jackson-databind</artifactId>
+    <version>2.16.1</version>
+</dependency>
 ```
 
 ---
@@ -473,7 +663,8 @@ domain.exception.MusicPlayerException (abstract)
 ├── FileAccessException     # File cannot be read/moved/deleted
 ├── MetadataException       # Metadata extraction failed
 ├── PlaybackException       # Audio playback failed
-└── PlaylistException      # Playlist operations failed (e.g., empty playlist)
+├── PlaylistException       # Playlist operations failed (e.g., empty playlist)
+└── LibraryStorageException # Library persistence failed (v2.0)
 ```
 
 ### Exception Package Location
@@ -486,7 +677,8 @@ src/main/java/com/musicplayer/
         ├── FileAccessException.java
         ├── MetadataException.java
         ├── PlaybackException.java
-        └── PlaylistException.java
+        ├── PlaylistException.java
+        └── LibraryStorageException.java    # v2.0
 ```
 
 ### Usage Guidelines
@@ -824,12 +1016,18 @@ releases/
 
 ## 16. Implementation Order
 
-| Phase | Tasks | Priority |
-|-------|-------|----------|
+| Phase | Tasks | Requirements |
+|-------|-------|--------------|
 | **Phase 1** | Domain models, Contracts, Infrastructure implementations | REQ-001, REQ-005, REQ-008, REQ-009 |
 | **Phase 2** | Application services, PlayerController | REQ-002, REQ-006 |
-| **Phase 3** | Swing UI implementation | REQ-003, REQ-004, REQ-007 |
-| **Phase 4** | Error handling refinement, testing | All |
+| **Phase 3** | JavaFX UI implementation | REQ-003, REQ-004, REQ-007 |
+| **Phase 4** | Error handling refinement, testing | All v1.0 |
+| **Phase 5** | Domain extensions (LibraryRepository, artwork) | REQ-011, REQ-012 |
+| **Phase 6** | Infrastructure persistence (JsonLibraryRepository) | REQ-011 |
+| **Phase 7** | Application (LibraryService, PlayerController integration) | REQ-011 |
+| **Phase 8** | UI layout redesign (BorderPane, QueuePanel, BrowserPanel) | REQ-010 |
+| **Phase 9** | Artwork display (ArtworkPanel) | REQ-012 |
+| **Phase 10** | Testing and refinement | All v2.0 |
 
 ---
 
@@ -860,3 +1058,4 @@ releases/
 |---------|------|---------|
 | 1.0.0 | 2026-04-01 | Initial architecture document |
 | 1.0.1 | 2026-04-01 | Added exception hierarchy, configuration, test setup, and build/packaging sections |
+| 2.0.0 | 2026-04-01 | Added v2.0 architecture: Library persistence (REQ-011), Album art (REQ-012), New layout (REQ-010) |

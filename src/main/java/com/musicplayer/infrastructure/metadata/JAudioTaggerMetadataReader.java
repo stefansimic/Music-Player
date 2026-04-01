@@ -7,6 +7,7 @@ import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
+import org.jaudiotagger.tag.images.Artwork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,11 +45,26 @@ public class JAudioTaggerMetadataReader implements MetadataReader {
             String artist = extractTagValue(tag, FieldKey.ARTIST);
             String album = extractTagValue(tag, FieldKey.ALBUM);
             Duration duration = extractDuration(header);
+            byte[] artwork = extractArtwork(tag);
             
-            return new TrackMetadata(title, artist, album, duration);
+            return new TrackMetadata(title, artist, album, duration, artwork);
         } catch (Exception e) {
             logger.warn("Failed to read metadata from: {}", filePath, e);
             throw new MetadataException("Failed to read metadata from: " + filePath, e);
+        }
+    }
+
+    @Override
+    public byte[] readArtwork(Path filePath) throws MetadataException {
+        validateFilePath(filePath);
+        
+        try {
+            AudioFile audioFile = AudioFileIO.read(filePath.toFile());
+            Tag tag = audioFile.getTag();
+            return extractArtwork(tag);
+        } catch (Exception e) {
+            logger.warn("Failed to read artwork from: {}", filePath, e);
+            throw new MetadataException("Failed to read artwork from: " + filePath, e);
         }
     }
 
@@ -78,6 +94,21 @@ public class JAudioTaggerMetadataReader implements MetadataReader {
             logger.debug("Failed to extract tag {}: {}", key, e.getMessage());
             return null;
         }
+    }
+
+    private byte[] extractArtwork(Tag tag) {
+        if (tag == null) {
+            return null;
+        }
+        try {
+            Artwork artwork = tag.getFirstArtwork();
+            if (artwork != null && artwork.getBinaryData() != null) {
+                return artwork.getBinaryData();
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to extract artwork: {}", e.getMessage());
+        }
+        return null;
     }
 
     private String fixEncoding(String value) {

@@ -256,3 +256,99 @@ As a User, I want imported files to be sorted in a predictable order so that I k
 - Streaming services
 - Network file access
 - Mobile platform support
+
+---
+
+## New Stories (v2.0)
+
+### REQ-010: New Layout - Browse & Queue
+
+| Field | Value |
+|-------|-------|
+| ID | REQ-010 |
+| Title | New Layout - Browse & Queue |
+| Priority | High |
+
+**Description**
+
+As a User, I want a redesigned layout with a browser view for albums, playlists, artists, and a collapsible queue so that I can easily browse and manage my music.
+
+**Acceptance Criteria**
+
+| ID | Criterion |
+|----|-----------|
+| REQ-010.1 | Player controls are positioned at the bottom of the window |
+| REQ-010.2 | Queue (playlist) is displayed on the left side |
+| REQ-010.3 | Queue can be maximized and minimized (collapse/expand) |
+| REQ-010.4 | Center area contains browser view for categories |
+| REQ-010.5 | Categories available: Albums, Playlists, Artists, Genres |
+| REQ-010.6 | Folders are automatically treated as playlists |
+
+---
+
+### REQ-011: Library Persistence
+
+| Field | Value |
+|-------|-------|
+| ID | REQ-011 |
+| Title | Library Persistence |
+| Priority | High |
+
+**Description**
+
+As a User, I want the application to remember imported music and their metadata so that the library loads instantly on startup without rescanning files.
+
+**Acceptance Criteria**
+
+| ID | Criterion |
+|----|-----------|
+| REQ-011.1 | Imported music library is saved to local storage |
+| REQ-011.2 | Metadata (title, artist, album, duration) is cached |
+| REQ-011.3 | Library loads automatically on application startup |
+| REQ-011.4 | Only new/changed files are rescanned on startup |
+| REQ-011.5 | User can trigger full library rescan manually |
+| REQ-011.6 | Deleted files are removed from library on scan |
+| REQ-011.7 | Import location paths are stored and monitored |
+
+---
+
+### REQ-012: Album Art Display
+
+| Field | Value |
+|-------|-------|
+| ID | REQ-012 |
+| Title | Album Art Display |
+| Priority | Medium |
+
+**Description**
+
+As a User, I want to see the album artwork of the currently playing track so that I have a visual reference for what I'm listening to.
+
+**Acceptance Criteria**
+
+| ID | Criterion |
+|----|-----------|
+| REQ-012.1 | Album artwork is displayed in the player area |
+| REQ-012.2 | Artwork is extracted from MP3 metadata (ID3 tag) |
+| REQ-012.3 | Placeholder image is shown when artwork is not available |
+| REQ-012.4 | Artwork updates when track changes |
+| REQ-012.5 | Artwork is displayed in bottom-right area |
+
+---
+
+## Requirements Summary (All)
+
+| ID | Requirement | Priority | Version |
+|----|-------------|----------|---------|
+| REQ-001 | Directory Import | High | v1.0 |
+| REQ-002 | Playback Controls | High | v1.0 |
+| REQ-003 | Track Queue Display | High | v1.0 |
+| REQ-004 | Playback Modes | Medium | v1.0 |
+| REQ-005 | Metadata Display | Medium | v1.0 |
+| REQ-006 | Error Handling | High | v1.0 |
+| REQ-007 | Progress Bar Seeking | High | v1.0 |
+| REQ-008 | Subdirectory Scanning | High | v1.0 |
+| REQ-009 | File Sorting | Medium | v1.0 |
+| REQ-010 | New Layout - Browse & Queue | High | v2.0 |
+| REQ-011 | Library Persistence | High | v2.0 |
+| REQ-012 | Album Art Display | Medium | v2.0 |
