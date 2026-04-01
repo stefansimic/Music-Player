@@ -435,7 +435,8 @@ public class PlayerController {
                         entry.title(),
                         entry.artist(),
                         entry.album(),
-                        entry.duration()
+                        entry.duration(),
+                        entry.artwork()
                 ))
                 .toList();
     }

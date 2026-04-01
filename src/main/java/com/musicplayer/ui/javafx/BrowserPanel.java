@@ -194,7 +194,8 @@ public class BrowserPanel extends VBox {
                         entry.title(),
                         entry.artist(),
                         entry.album(),
-                        entry.duration()
+                        entry.duration(),
+                        entry.artwork()
                 ))
                 .toList();
         
@@ -253,7 +254,8 @@ public class BrowserPanel extends VBox {
         }
         
         pathGroups.forEach((folder, tracks) -> {
-            playlists.add(new BrowserItem(folder, tracks.size(), null));
+            byte[] artwork = findArtworkForAlbum(tracks);
+            playlists.add(new BrowserItem(folder, tracks.size(), artwork));
         });
     }
     
@@ -288,8 +290,8 @@ public class BrowserPanel extends VBox {
     
     private byte[] findArtworkForAlbum(List<Track> tracks) {
         for (Track track : tracks) {
-            if (track.getPath() != null) {
-                return null;
+            if (track.hasArtwork()) {
+                return track.getArtwork();
             }
         }
         return null;
@@ -329,14 +331,35 @@ public class BrowserPanel extends VBox {
     
     private ImageView createThumbnailImageView(byte[] thumbnail) {
         ImageView view = new ImageView();
+        view.setFitWidth(40);
+        view.setFitHeight(40);
+        
         if (thumbnail != null && thumbnail.length > 0) {
             try {
                 view.setImage(new Image(new ByteArrayInputStream(thumbnail)));
             } catch (Exception e) {
                 logger.debug("Failed to load thumbnail", e);
+                view.setImage(createPlaceholderImage());
             }
+        } else {
+            view.setImage(createPlaceholderImage());
         }
         return view;
+    }
+    
+    private Image createPlaceholderImage() {
+        String svg = """
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+              <rect width="40" height="40" fill="#333333"/>
+              <circle cx="20" cy="15" r="8" fill="#555555"/>
+              <path d="M10 30 Q20 22 30 30 L30 38 Q20 32 10 38 Z" fill="#555555"/>
+            </svg>
+            """;
+        try {
+            return new Image(new ByteArrayInputStream(svg.getBytes("UTF-8")));
+        } catch (Exception e) {
+            return null;
+        }
     }
     
     public record BrowserItem(String name, int trackCount, byte[] thumbnail) {

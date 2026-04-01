@@ -16,6 +16,7 @@ public class Track {
     private String artist;
     private String album;
     private Duration duration;
+    private byte[] artwork;
 
     /**
      * Creates a new track from a file path only.
@@ -42,11 +43,27 @@ public class Track {
      * @throws IllegalArgumentException if path is null or empty
      */
     public Track(String path, String title, String artist, String album, Duration duration) {
+        this(path, title, artist, album, duration, null);
+    }
+    
+    /**
+     * Creates a new track with full metadata including artwork.
+     *
+     * @param path     the absolute file path to the MP3 file
+     * @param title    the track title (nullable, defaults to filename)
+     * @param artist   the artist name (nullable, defaults to "Unknown")
+     * @param album    the album name (nullable, defaults to "Unknown")
+     * @param duration the track duration (nullable)
+     * @param artwork  the album artwork bytes (nullable)
+     * @throws IllegalArgumentException if path is null or empty
+     */
+    public Track(String path, String title, String artist, String album, Duration duration, byte[] artwork) {
         this.path = validatePath(path);
         this.title = (title != null && !title.isBlank()) ? title : extractTitleFromPath(path);
         this.artist = (artist != null && !artist.isBlank()) ? artist : "Unknown";
         this.album = (album != null && !album.isBlank()) ? album : "Unknown";
         this.duration = duration;
+        this.artwork = artwork;
     }
 
     private String validatePath(String path) {
@@ -145,6 +162,33 @@ public class Track {
      */
     public void setDuration(Duration duration) {
         this.duration = duration;
+    }
+    
+    /**
+     * Returns the album artwork.
+     *
+     * @return the artwork bytes, or null if not available
+     */
+    public byte[] getArtwork() {
+        return artwork;
+    }
+    
+    /**
+     * Sets the album artwork.
+     *
+     * @param artwork the artwork bytes
+     */
+    public void setArtwork(byte[] artwork) {
+        this.artwork = artwork;
+    }
+    
+    /**
+     * Returns whether this track has artwork.
+     *
+     * @return true if artwork is available
+     */
+    public boolean hasArtwork() {
+        return artwork != null && artwork.length > 0;
     }
 
     @Override

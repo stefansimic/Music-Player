@@ -265,7 +265,6 @@ public class MusicPlayerUI extends BorderPane {
             public void onPlaylistChanged(List<Track> playlist) {
                 Platform.runLater(() -> {
                     queuePanel.setTracks(playlist);
-                    browserPanel.setTracks(playlist);
                 });
             }
 
@@ -293,7 +292,6 @@ public class MusicPlayerUI extends BorderPane {
                     browserPanel.setLibrary(library);
                     List<Track> tracks = convertLibraryToTracks(library);
                     queuePanel.setTracks(tracks);
-                    browserPanel.setTracks(tracks);
                 });
             }
 
@@ -303,7 +301,6 @@ public class MusicPlayerUI extends BorderPane {
                     browserPanel.setLibrary(library);
                     List<Track> tracks = convertLibraryToTracks(library);
                     queuePanel.setTracks(tracks);
-                    browserPanel.setTracks(tracks);
                 });
             }
         });
@@ -411,7 +408,11 @@ public class MusicPlayerUI extends BorderPane {
             titleLabel.setText(track.getTitle());
             artistLabel.setText(track.getArtist());
             if (artworkPanel != null) {
-                artworkPanel.setPlaceholder();
+                if (track.hasArtwork()) {
+                    artworkPanel.setArtwork(track.getArtwork());
+                } else {
+                    artworkPanel.setPlaceholder();
+                }
             }
         } else {
             titleLabel.setText("No track loaded");
