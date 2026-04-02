@@ -14,33 +14,37 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 
-/**
- * Panel displaying the album artwork of the currently playing track.
- */
 public class ArtworkPanel extends VBox {
     
     private static final Logger logger = LoggerFactory.getLogger(ArtworkPanel.class);
     
-    private static final int DEFAULT_SIZE = 150;
+    private static final int DEFAULT_SIZE = 100;
     
     private final ImageView imageView;
     private final Image placeholderImage;
     
     public ArtworkPanel() {
         setAlignment(Pos.CENTER);
-        setPadding(new Insets(10));
+        setPadding(new Insets(0));
+        setStyle(
+            "-fx-background-radius: 8;" +
+            "-fx-border-radius: 8;"
+        );
         
         imageView = new ImageView();
         imageView.setFitWidth(DEFAULT_SIZE);
         imageView.setFitHeight(DEFAULT_SIZE);
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
+        imageView.setStyle(
+            "-fx-background-radius: 8;" +
+            "-fx-border-radius: 8;"
+        );
         
         placeholderImage = createPlaceholderImage();
         imageView.setImage(placeholderImage);
         
-        setStyle("-fx-background-color: #2a2a2a;");
-        setBackground(new Background(new BackgroundFill(Color.rgb(42, 42, 42), CornerRadii.EMPTY, Insets.EMPTY)));
+        setBackground(new Background(new BackgroundFill(Color.TRANSPARENT, CornerRadii.EMPTY, Insets.EMPTY)));
         
         getChildren().add(imageView);
     }
@@ -76,10 +80,16 @@ public class ArtworkPanel extends VBox {
     
     private Image createPlaceholderImage() {
         String svgData = """
-            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
-              <rect width="150" height="150" fill="#3a3a3a"/>
-              <circle cx="75" cy="60" r="30" fill="#555"/>
-              <path d="M45 100 Q75 80 105 100 L105 130 Q75 115 45 130 Z" fill="#555"/>
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#667eea"/>
+                  <stop offset="100%" style="stop-color:#764ba2"/>
+                </linearGradient>
+              </defs>
+              <rect width="100" height="100" fill="url(#grad)" rx="8"/>
+              <circle cx="50" cy="36" r="16" fill="rgba(255,255,255,0.3)"/>
+              <path d="M32 65 Q50 50 68 65 L68 80 Q50 68 32 80 Z" fill="rgba(255,255,255,0.3)"/>
             </svg>
             """;
         

@@ -6,7 +6,9 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelWriter;
@@ -20,9 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Panel for browsing music by category (Albums, Artists, Playlists, Genres).
- */
 public class BrowserPanel extends VBox {
     
     private static final Logger logger = LoggerFactory.getLogger(BrowserPanel.class);
@@ -49,11 +48,15 @@ public class BrowserPanel extends VBox {
     
     public BrowserPanel() {
         setAlignment(Pos.TOP_LEFT);
-        setPadding(new Insets(10));
+        setPadding(new Insets(16));
         
         tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setStyle("-fx-background-color: transparent;");
+        tabPane.setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-border-width: 0;"
+        );
+        tabPane.getStylesheets().clear();
         
         albums = FXCollections.observableArrayList();
         artists = FXCollections.observableArrayList();
@@ -61,28 +64,53 @@ public class BrowserPanel extends VBox {
         genres = FXCollections.observableArrayList();
         nowPlayingTracks = FXCollections.observableArrayList();
         
-        Tab albumsTab = createTab("Albums", albums, albumListView = createListView(albums));
-        Tab artistsTab = createTab("Artists", artists, artistListView = createListView(artists));
-        Tab playlistsTab = createTab("Playlists", playlists, playlistListView = createListView(playlists));
-        Tab genresTab = createTab("Genres", genres, genreListView = createListView(genres));
+        Tab albumsTab = createTab("Albums", albums, albumListView = createListView(albums), IconFactory.createAlbumIcon());
+        Tab artistsTab = createTab("Artists", artists, artistListView = createListView(artists), IconFactory.createArtistIcon());
+        Tab playlistsTab = createTab("Playlists", playlists, playlistListView = createListView(playlists), IconFactory.createPlaylistIcon());
+        Tab genresTab = createTab("Genres", genres, genreListView = createListView(genres), IconFactory.createFolderIcon());
         nowPlayingTab = createNowPlayingTab();
         
         tabPane.getTabs().addAll(albumsTab, artistsTab, playlistsTab, genresTab, nowPlayingTab);
         
-        setBackground(new Background(new BackgroundFill(Color.rgb(240, 240, 240), new CornerRadii(0), Insets.EMPTY)));
+        setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-border-width: 0;"
+        );
+        
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+        
         getChildren().add(tabPane);
     }
     
     private Tab createNowPlayingTab() {
         Tab tab = new Tab("Now Playing");
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(10));
+        tab.setStyle("-fx-text-fill: #334155; -fx-font-size: 13px; -fx-font-weight: 500;");
+        
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(12));
         
         nowPlayingHeader = new Label("Selection");
-        nowPlayingHeader.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        nowPlayingHeader.setStyle(
+            "-fx-font-size: 18px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-text-fill: #1e293b;"
+        );
         
-        Button startButton = new Button("▶ Start");
-        startButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 8 20; -fx-font-size: 14px;");
+        Button startButton = new Button("Play");
+        startButton.setGraphic(IconFactory.createPlayIcon());
+        ((javafx.scene.shape.SVGPath)startButton.getGraphic()).setScaleX(0.8);
+        ((javafx.scene.shape.SVGPath)startButton.getGraphic()).setScaleY(0.8);
+        setSvgPathColor((javafx.scene.shape.SVGPath)startButton.getGraphic(), Color.WHITE);
+        startButton.setStyle(
+            "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" +
+            "-fx-text-fill: white;" +
+            "-fx-padding: 10 24;" +
+            "-fx-font-size: 14px;" +
+            "-fx-font-weight: 500;" +
+            "-fx-background-radius: 20;" +
+            "-fx-border-radius: 20;" +
+            "-fx-cursor: hand;"
+        );
         startButton.setOnAction(e -> {
             if (startListener != null && !nowPlayingTracks.isEmpty()) {
                 startListener.onStartPlaylist(List.copyOf(nowPlayingTracks));
@@ -90,20 +118,46 @@ public class BrowserPanel extends VBox {
         });
         
         nowPlayingListView = new ListView<>(nowPlayingTracks);
+        nowPlayingListView.setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-border-width: 0;"
+        );
         nowPlayingListView.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(Track track, boolean empty) {
                 super.updateItem(track, empty);
                 if (empty || track == null) {
                     setText(null);
+                    setGraphic(null);
                 } else {
-                    setText(String.format("%s - %s", track.getTitle(), track.getArtist()));
-                    setStyle("-fx-padding: 5 10;");
+                    HBox container = new HBox();
+                    container.setSpacing(10);
+                    container.setPadding(new Insets(8, 12, 8, 12));
+                    container.setAlignment(Pos.CENTER_LEFT);
+                    container.setStyle("-fx-background-color: transparent; -fx-background-radius: 8;");
+                    
+                    Label title = new Label(track.getTitle());
+                    title.setStyle(
+                        "-fx-font-size: 13px;" +
+                        "-fx-text-fill: #334155;" +
+                        "-fx-font-weight: 500;"
+                    );
+                    
+                    Label artist = new Label(" - " + track.getArtist());
+                    artist.setStyle(
+                        "-fx-font-size: 12px;" +
+                        "-fx-text-fill: #94a3b8;"
+                    );
+                    
+                    container.getChildren().addAll(title, artist);
+                    HBox.setHgrow(title, Priority.ALWAYS);
+                    setGraphic(container);
+                    setText(null);
                 }
             }
         });
         
-        HBox buttonBar = new HBox(10);
+        HBox buttonBar = new HBox(12);
         buttonBar.setAlignment(Pos.CENTER_LEFT);
         buttonBar.getChildren().add(startButton);
         
@@ -117,13 +171,24 @@ public class BrowserPanel extends VBox {
         return tab;
     }
     
-    private Tab createTab(String title, ObservableList<BrowserItem> items, ListView<BrowserItem> listView) {
+    private Tab createTab(String title, ObservableList<BrowserItem> items, ListView<BrowserItem> listView, Node icon) {
         Tab tab = new Tab(title);
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(10));
+        tab.setStyle(
+            "-fx-text-fill: #64748b;" +
+            "-fx-font-size: 13px;" +
+            "-fx-font-weight: 500;" +
+            "-fx-padding: 10 20;"
+        );
+        
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(12));
         
         Label headerLabel = new Label(title);
-        headerLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        headerLabel.setStyle(
+            "-fx-font-size: 18px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-text-fill: #1e293b;"
+        );
         
         listView.setCellFactory(lv -> new ListCell<>() {
             @Override
@@ -133,30 +198,73 @@ public class BrowserPanel extends VBox {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    VBox box = new VBox(5);
-                    box.setAlignment(Pos.CENTER_LEFT);
-                    
-                    HBox hbox = new HBox(10);
+                    HBox hbox = new HBox(12);
                     hbox.setAlignment(Pos.CENTER_LEFT);
+                    hbox.setPadding(new Insets(10, 12, 10, 12));
+                    hbox.setStyle(
+                        "-fx-background-color: white;" +
+                        "-fx-background-radius: 10;" +
+                        "-fx-border-color: transparent;" +
+                        "-fx-border-width: 1;" +
+                        "-fx-border-radius: 10;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.04), 4, 0, 0, 2);"
+                    );
                     
                     ImageView thumbnail = createThumbnailImageView(item.thumbnail());
-                    thumbnail.setFitWidth(40);
-                    thumbnail.setFitHeight(40);
+                    thumbnail.setFitWidth(44);
+                    thumbnail.setFitHeight(44);
                     thumbnail.setPreserveRatio(true);
+                    thumbnail.setSmooth(true);
+                    thumbnail.setStyle(
+                        "-fx-background-radius: 8;" +
+                        "-fx-border-radius: 8;"
+                    );
                     
-                    VBox textBox = new VBox(2);
+                    VBox textBox = new VBox(3);
+                    textBox.setAlignment(Pos.CENTER_LEFT);
+                    
                     Label nameLabel = new Label(item.name());
-                    nameLabel.setStyle("-fx-font-weight: bold;");
+                    nameLabel.setStyle(
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: 600;" +
+                        "-fx-text-fill: #334155;" +
+                        "-fx-text-smoothing-type: lcd;"
+                    );
+                    HBox.setHgrow(nameLabel, Priority.ALWAYS);
+                    
                     Label countLabel = new Label(item.trackCount() + " tracks");
-                    countLabel.setStyle("-fx-font-size: 11px;");
+                    countLabel.setStyle(
+                        "-fx-font-size: 12px;" +
+                        "-fx-text-fill: #94a3b8;"
+                    );
+                    
                     textBox.getChildren().addAll(nameLabel, countLabel);
-                    
+                    HBox.setHgrow(textBox, Priority.ALWAYS);
                     hbox.getChildren().addAll(thumbnail, textBox);
-                    box.getChildren().add(hbox);
                     
-                    setGraphic(box);
+                    hbox.setOnMouseEntered(e -> 
+                        hbox.setStyle(
+                            "-fx-background-color: #f8fafc;" +
+                            "-fx-background-radius: 10;" +
+                            "-fx-border-color: #e2e8f0;" +
+                            "-fx-border-width: 1;" +
+                            "-fx-border-radius: 10;" +
+                            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.06), 6, 0, 0, 3);"
+                        )
+                    );
+                    hbox.setOnMouseExited(e -> 
+                        hbox.setStyle(
+                            "-fx-background-color: white;" +
+                            "-fx-background-radius: 10;" +
+                            "-fx-border-color: transparent;" +
+                            "-fx-border-width: 1;" +
+                            "-fx-border-radius: 10;" +
+                            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.04), 4, 0, 0, 2);"
+                        )
+                    );
+                    
+                    setGraphic(hbox);
                     setText(null);
-                    setStyle("-fx-background-color: transparent; -fx-padding: 5;");
                 }
             }
         });
@@ -171,7 +279,7 @@ public class BrowserPanel extends VBox {
             }
         });
         
-        VBox.setVgrow(listView, javafx.scene.layout.Priority.ALWAYS);
+        VBox.setVgrow(listView, Priority.ALWAYS);
         content.getChildren().addAll(headerLabel, listView);
         
         tab.setContent(content);
@@ -180,7 +288,12 @@ public class BrowserPanel extends VBox {
     
     private ListView<BrowserItem> createListView(ObservableList<BrowserItem> items) {
         ListView<BrowserItem> view = new ListView<>(items);
-        view.setStyle("-fx-background-color: transparent;");
+        view.setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-border-width: 0;" +
+            "-fx-padding: 0;"
+        );
+        view.setFixedCellSize(-1);
         return view;
     }
     
@@ -333,8 +446,6 @@ public class BrowserPanel extends VBox {
     
     private ImageView createThumbnailImageView(byte[] thumbnail) {
         ImageView view = new ImageView();
-        view.setFitWidth(40);
-        view.setFitHeight(40);
         
         if (thumbnail != null && thumbnail.length > 0) {
             try {
@@ -350,21 +461,25 @@ public class BrowserPanel extends VBox {
     }
     
     private Image createPlaceholderImage() {
-        int width = 40;
-        int height = 40;
+        int width = 44;
+        int height = 44;
         WritableImage image = new WritableImage(width, height);
         PixelWriter writer = image.getPixelWriter();
         
-        javafx.scene.paint.Color bgColor = javafx.scene.paint.Color.rgb(80, 80, 80);
-        javafx.scene.paint.Color iconColor = javafx.scene.paint.Color.rgb(120, 120, 120);
+        Color primaryColor = Color.rgb(102, 126, 234);
+        Color secondaryColor = Color.rgb(118, 75, 162);
         
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                writer.setColor(x, y, bgColor);
+                double gradient = (double) x / width;
+                int r = (int)(102 + (118 - 102) * gradient);
+                int g = (int)(126 + (75 - 126) * gradient);
+                int b = (int)(234 + (162 - 234) * gradient);
+                writer.setColor(x, y, Color.rgb(r, g, b));
             }
         }
         
-        int centerX = 20;
+        int centerX = 22;
         int centerY = 16;
         int radius = 10;
         for (int y = centerY - radius; y <= centerY + radius; y++) {
@@ -372,13 +487,17 @@ public class BrowserPanel extends VBox {
                 if (y >= 0 && y < height && x >= 0 && x < width) {
                     double dist = Math.sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
                     if (dist <= radius) {
-                        writer.setColor(x, y, iconColor);
+                        writer.setColor(x, y, Color.rgb(255, 255, 255));
                     }
                 }
             }
         }
         
         return image;
+    }
+    
+    private void setSvgPathColor(javafx.scene.shape.SVGPath path, Color color) {
+        path.setFill(color);
     }
     
     public record BrowserItem(String name, int trackCount, byte[] thumbnail) {
