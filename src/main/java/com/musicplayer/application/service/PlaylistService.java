@@ -45,6 +45,11 @@ public class PlaylistService {
         notifyPlaylistChanged();
     }
 
+    public void insertTrack(Track track, int index) {
+        playlist.insertTrack(track, index);
+        notifyPlaylistChanged();
+    }
+
     public void removeTrack(int index) {
         playlist.removeTrack(index);
         notifyPlaylistChanged();

@@ -3,6 +3,8 @@ package com.musicplayer.ui.javafx;
 import com.musicplayer.domain.model.Library;
 import com.musicplayer.domain.model.Track;
 import javafx.collections.FXCollections;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -45,6 +47,7 @@ public class BrowserPanel extends VBox {
     private List<Track> allTracks;
     private CategorySelectionListener selectionListener;
     private StartPlaylistListener startListener;
+    private PlayNextInQueueListener playNextInQueueListener;
     
     public BrowserPanel() {
         setAlignment(Pos.TOP_LEFT);
@@ -122,6 +125,32 @@ public class BrowserPanel extends VBox {
             "-fx-background-color: transparent;" +
             "-fx-border-width: 0;"
         );
+        
+        ContextMenu contextMenu = new ContextMenu();
+        contextMenu.setStyle(
+            "-fx-background-color: white;" +
+            "-fx-border-color: #e2e8f0;" +
+            "-fx-border-width: 1;" +
+            "-fx-border-radius: 8;" +
+            "-fx-background-radius: 8;" +
+            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.1), 10, 0, 0, 4);"
+        );
+        
+        MenuItem playNextItem = new MenuItem("Play next");
+        playNextItem.setStyle(
+            "-fx-text-fill: #334155;" +
+            "-fx-font-size: 13px;" +
+            "-fx-padding: 8 16;"
+        );
+        playNextItem.setOnAction(e -> {
+            Track selected = nowPlayingListView.getSelectionModel().getSelectedItem();
+            if (selected != null && playNextInQueueListener != null) {
+                playNextInQueueListener.onPlayNextInQueue(selected);
+            }
+        });
+        contextMenu.getItems().add(playNextItem);
+        nowPlayingListView.setContextMenu(contextMenu);
+        
         nowPlayingListView.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(Track track, boolean empty) {
@@ -437,6 +466,10 @@ public class BrowserPanel extends VBox {
         this.startListener = listener;
     }
     
+    public void setOnPlayNext(PlayNextInQueueListener listener) {
+        this.playNextInQueueListener = listener;
+    }
+    
     public void showNowPlaying(String title, List<Track> tracks) {
         nowPlayingHeader.setText(title + " (" + tracks.size() + " tracks)");
         nowPlayingTracks.clear();
@@ -521,5 +554,10 @@ public class BrowserPanel extends VBox {
     @FunctionalInterface
     public interface StartPlaylistListener {
         void onStartPlaylist(java.util.List<Track> tracks);
+    }
+    
+    @FunctionalInterface
+    public interface PlayNextInQueueListener {
+        void onPlayNextInQueue(Track track);
     }
 }

@@ -65,6 +65,27 @@ public class Playlist implements Iterable<Track> {
     }
 
     /**
+     * Inserts a track at the specified index.
+     *
+     * @param track the track to insert
+     * @param index the position to insert at
+     * @throws IllegalArgumentException if track is null
+     * @throws IndexOutOfBoundsException if index is invalid
+     */
+    public void insertTrack(Track track, int index) {
+        if (track == null) {
+            throw new IllegalArgumentException("Track cannot be null");
+        }
+        if (index < 0 || index > tracks.size()) {
+            throw new IndexOutOfBoundsException("Invalid insert index: " + index);
+        }
+        tracks.add(index, track);
+        if (currentIndex >= index) {
+            currentIndex++;
+        }
+    }
+
+    /**
      * Removes the track at the specified index.
      *
      * @param index the index of the track to remove

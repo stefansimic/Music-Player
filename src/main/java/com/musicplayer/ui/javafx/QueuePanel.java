@@ -5,9 +5,13 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
@@ -19,6 +23,8 @@ public class QueuePanel extends VBox {
     private final ObservableList<Track> tracks;
     
     private int currentTrackIndex = -1;
+    private PlayNextListener playNextListener;
+    private RemoveTrackListener removeTrackListener;
     
     public QueuePanel() {
         setAlignment(Pos.TOP_LEFT);
@@ -41,6 +47,47 @@ public class QueuePanel extends VBox {
         );
         trackList.setCellFactory(lv -> createTrackCell());
         trackList.setFixedCellSize(-1);
+        
+        ContextMenu contextMenu = new ContextMenu();
+        contextMenu.setStyle(
+            "-fx-background-color: white;" +
+            "-fx-border-color: #e2e8f0;" +
+            "-fx-border-width: 1;" +
+            "-fx-border-radius: 8;" +
+            "-fx-background-radius: 8;" +
+            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.1), 10, 0, 0, 4);"
+        );
+        
+        MenuItem playNextItem = new MenuItem("Play next");
+        playNextItem.setStyle(
+            "-fx-text-fill: #334155;" +
+            "-fx-font-size: 13px;" +
+            "-fx-padding: 8 16;"
+        );
+        playNextItem.setOnAction(e -> {
+            Track selected = trackList.getSelectionModel().getSelectedItem();
+            if (selected != null && playNextListener != null) {
+                playNextListener.onPlayNext(selected);
+            }
+        });
+        
+        MenuItem removeItem = new MenuItem("Remove");
+        removeItem.setStyle(
+            "-fx-text-fill: #ef4444;" +
+            "-fx-font-size: 13px;" +
+            "-fx-padding: 8 16;"
+        );
+        removeItem.setOnAction(e -> {
+            Track selected = trackList.getSelectionModel().getSelectedItem();
+            int index = trackList.getSelectionModel().getSelectedIndex();
+            if (selected != null && removeTrackListener != null) {
+                removeTrackListener.onRemoveTrack(selected, index);
+            }
+        });
+        
+        contextMenu.getItems().addAll(playNextItem, new SeparatorMenuItem(), removeItem);
+        
+        trackList.setContextMenu(contextMenu);
         
         VBox contentBox = new VBox();
         contentBox.setFillWidth(true);
@@ -167,6 +214,14 @@ public class QueuePanel extends VBox {
         });
     }
     
+    public void setOnPlayNext(PlayNextListener listener) {
+        this.playNextListener = listener;
+    }
+    
+    public void setOnRemoveTrack(RemoveTrackListener listener) {
+        this.removeTrackListener = listener;
+    }
+    
     @FunctionalInterface
     public interface TrackSelectedListener {
         void onTrackSelected(Track track, int index);
@@ -175,5 +230,15 @@ public class QueuePanel extends VBox {
     @FunctionalInterface
     public interface TrackDoubleClickedListener {
         void onTrackDoubleClicked(Track track, int index);
+    }
+    
+    @FunctionalInterface
+    public interface PlayNextListener {
+        void onPlayNext(Track track);
+    }
+    
+    @FunctionalInterface
+    public interface RemoveTrackListener {
+        void onRemoveTrack(Track track, int index);
     }
 }

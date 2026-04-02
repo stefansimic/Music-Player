@@ -295,6 +295,26 @@ public class PlayerController {
         return playlistService.getCurrentIndex();
     }
 
+    public void playNext(Track track) {
+        int nextIndex = playlistService.getCurrentIndex() + 1;
+        if (nextIndex > playlistService.getSize()) {
+            nextIndex = playlistService.getSize();
+        }
+        playlistService.insertTrack(track, nextIndex);
+        notifyPlaylistChanged(playlistService.getTracks());
+        logger.info("Added track as next: {}", track.getTitle());
+        notifyInfo("Added to queue: " + track.getTitle());
+    }
+
+    public void removeTrack(int index) {
+        if (index >= 0 && index < playlistService.getSize()) {
+            Track track = playlistService.getTrack(index);
+            playlistService.removeTrack(index);
+            notifyPlaylistChanged(playlistService.getTracks());
+            logger.info("Removed track: {}", track.getTitle());
+        }
+    }
+
     public PlaybackState getPlaybackState() {
         return playbackState;
     }

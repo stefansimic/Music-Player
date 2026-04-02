@@ -83,11 +83,16 @@ public class MusicPlayerUI extends BorderPane {
         
         queuePanel = new QueuePanel();
         queuePanel.setOnTrackDoubleClicked((track, index) -> controller.playTrack(index));
+        queuePanel.setOnPlayNext((track) -> controller.playNext(track));
+        queuePanel.setOnRemoveTrack((track, index) -> {
+            controller.removeTrack(index);
+        });
         setLeft(queuePanel);
         
         browserPanel = new BrowserPanel();
         browserPanel.setOnCategorySelected((category, item, tracks) -> browserPanel.showNowPlaying(item.name(), tracks));
         browserPanel.setOnStartPlaylist(this::startPlaylist);
+        browserPanel.setOnPlayNext((track) -> controller.playNext(track));
         
         StackPane centerContainer = new StackPane(browserPanel);
         centerContainer.setStyle(
