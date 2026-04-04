@@ -184,6 +184,21 @@ public class MusicPlayerUI extends BorderPane {
         fileMenu.getItems().addAll(openDir, new SeparatorMenuItem(), rescan, fullRescan, 
                 new SeparatorMenuItem(), exit);
         
+        Menu performanceMenu = new Menu("Performance");
+        performanceMenu.setStyle("-fx-text-fill: #334155;");
+        
+        CheckMenuItem resourceSaver = new CheckMenuItem("Resource-safer");
+        resourceSaver.setSelected(controller.isResourceSavingMode());
+        resourceSaver.setOnAction(e -> {
+            controller.setResourceSavingMode(resourceSaver.isSelected());
+            statusLabel.setText(resourceSaver.isSelected() 
+                    ? "Resource-safer mode enabled" 
+                    : "Resource-safer mode disabled");
+        });
+        styleMenuItem(resourceSaver);
+        
+        performanceMenu.getItems().add(resourceSaver);
+        
         Menu helpMenu = new Menu("Help");
         helpMenu.setStyle("-fx-text-fill: #334155;");
         
@@ -193,7 +208,7 @@ public class MusicPlayerUI extends BorderPane {
         
         helpMenu.getItems().add(about);
         
-        MenuBar menuBar = new MenuBar(fileMenu, helpMenu);
+        MenuBar menuBar = new MenuBar(fileMenu, performanceMenu, helpMenu);
         menuBar.setStyle(
             "-fx-background-color: white;" +
             "-fx-padding: 8 16;" +
@@ -561,7 +576,7 @@ public class MusicPlayerUI extends BorderPane {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("About Music Player");
         alert.setHeaderText("Music Player v2.0");
-        alert.setContentText("A modern music player for MP3 files.\n\nBuilt with Java and JavaFX.");
+        alert.setContentText("A modern music player for MP3 files.\n\nBuilt with Java and JavaFX.\n\nFeatures:\n- Resource-saving mode for large libraries");
         
         DialogPane dialogPane = alert.getDialogPane();
         dialogPane.setStyle(

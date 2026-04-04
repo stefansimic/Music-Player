@@ -9,7 +9,10 @@ import com.musicplayer.domain.contract.AudioPlayer;
 import com.musicplayer.domain.contract.FileScanner;
 import com.musicplayer.domain.contract.LibraryRepository;
 import com.musicplayer.domain.contract.MetadataReader;
+import com.musicplayer.domain.contract.TrackLoader;
+import com.musicplayer.infrastructure.audio.EagerTrackLoader;
 import com.musicplayer.infrastructure.audio.JavaFxAudioPlayer;
+import com.musicplayer.infrastructure.audio.LazyTrackLoader;
 import com.musicplayer.infrastructure.filesystem.NioFileScanner;
 import com.musicplayer.infrastructure.metadata.JAudioTaggerMetadataReader;
 import com.musicplayer.infrastructure.persistence.JsonLibraryRepository;
@@ -80,9 +83,18 @@ public class Main extends Application {
             metadataReader
         );
         
+        TrackLoader trackLoader = createTrackLoader(audioPlayer);
+        
         audioService.setVolume(AppConfig.getVolumeDefault());
         
-        controller = new PlayerController(audioService, playlistService, fileService, libraryService);
+        controller = new PlayerController(audioService, playlistService, fileService, libraryService, trackLoader);
+    }
+    
+    private TrackLoader createTrackLoader(AudioPlayer audioPlayer) {
+        if (AppConfig.isResourceSavingMode()) {
+            return new LazyTrackLoader(audioPlayer, AppConfig.getPreloadTrackCount());
+        }
+        return new EagerTrackLoader(audioPlayer);
     }
 
     @Override

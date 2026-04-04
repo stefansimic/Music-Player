@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -69,7 +70,7 @@ public class JsonLibraryRepository implements LibraryRepository {
             
             if (Files.exists(libraryPath)) {
                 Path backupPath = libraryPath.resolveSibling(libraryPath.getFileName() + ".bak");
-                Files.copy(libraryPath, backupPath);
+                Files.copy(libraryPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
             }
             
             Files.move(tempPath, libraryPath);

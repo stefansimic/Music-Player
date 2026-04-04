@@ -32,6 +32,8 @@ public class AppConfig {
     private static double windowWidth = 800;
     private static double windowHeight = 600;
     private static int progressUpdateMs = 100;
+    private static boolean resourceSavingMode = false;
+    private static int preloadTrackCount = 5;
 
     static {
         load();
@@ -101,6 +103,8 @@ public class AppConfig {
         windowWidth = getDouble("ui.window.width", 800);
         windowHeight = getDouble("ui.window.height", 600);
         progressUpdateMs = getInt("ui.progress-update-ms", 100);
+        resourceSavingMode = getBoolean("performance.resource-saving", true);
+        preloadTrackCount = getInt("performance.preload-count", 5);
     }
 
     private static double getDouble(String key, double defaultValue) {
@@ -153,6 +157,14 @@ public class AppConfig {
 
     public static int getProgressUpdateMs() {
         return progressUpdateMs;
+    }
+
+    public static boolean isResourceSavingMode() {
+        return resourceSavingMode;
+    }
+
+    public static int getPreloadTrackCount() {
+        return preloadTrackCount;
     }
 
     public static String getProperty(String key) {

@@ -4,6 +4,7 @@ import com.musicplayer.application.service.AudioService;
 import com.musicplayer.application.service.FileService;
 import com.musicplayer.application.service.LibraryService;
 import com.musicplayer.application.service.PlaylistService;
+import com.musicplayer.domain.contract.TrackLoader;
 import com.musicplayer.domain.exception.PlaybackException;
 import com.musicplayer.domain.model.Library;
 import com.musicplayer.domain.model.PlaybackState;
@@ -33,6 +34,7 @@ public class PlayerController {
     private final PlaylistService playlistService;
     private final FileService fileService;
     private final LibraryService libraryService;
+    private final TrackLoader trackLoader;
     
     private final CopyOnWriteArrayList<PlayerStateListener> listeners = new CopyOnWriteArrayList<>();
     private volatile PlaybackState playbackState = PlaybackState.IDLE;
@@ -40,11 +42,13 @@ public class PlayerController {
     public PlayerController(AudioService audioService, 
                            PlaylistService playlistService, 
                            FileService fileService,
-                           LibraryService libraryService) {
+                           LibraryService libraryService,
+                           TrackLoader trackLoader) {
         this.audioService = audioService;
         this.playlistService = playlistService;
         this.fileService = fileService;
         this.libraryService = libraryService;
+        this.trackLoader = trackLoader;
         
         setupInternalListeners();
     }
@@ -52,7 +56,7 @@ public class PlayerController {
     public PlayerController(AudioService audioService, 
                            PlaylistService playlistService, 
                            FileService fileService) {
-        this(audioService, playlistService, fileService, null);
+        this(audioService, playlistService, fileService, null, null);
     }
 
     private void setupInternalListeners() {
@@ -152,9 +156,8 @@ public class PlayerController {
         }
         
         try {
-            audioService.play(currentTrack);
+            playTrackInternal(currentTrack);
             updatePlaybackState(PlaybackState.PLAYING);
-            logger.info("Playing: {}", currentTrack.getTitle());
         } catch (PlaybackException e) {
             logger.error("Failed to play track", e);
             notifyError("Failed to play: " + currentTrack.getTitle());
@@ -194,7 +197,8 @@ public class PlayerController {
         Track track = playlistService.next();
         if (track != null && playbackState == PlaybackState.PLAYING) {
             try {
-                audioService.play(track);
+                playTrackInternal(track);
+                managePreloadNext();
             } catch (PlaybackException e) {
                 logger.error("Failed to play next track", e);
                 notifyError("Failed to play: " + track.getTitle());
@@ -212,7 +216,8 @@ public class PlayerController {
         Track track = playlistService.previous();
         if (track != null && playbackState == PlaybackState.PLAYING) {
             try {
-                audioService.play(track);
+                playTrackInternal(track);
+                managePreloadPrevious();
             } catch (PlaybackException e) {
                 logger.error("Failed to play previous track", e);
                 notifyError("Failed to play: " + track.getTitle());
@@ -230,7 +235,8 @@ public class PlayerController {
         Track track = playlistService.getCurrentTrack();
         
         try {
-            audioService.play(track);
+            playTrackInternal(track);
+            managePreloadForCurrent();
             updatePlaybackState(PlaybackState.PLAYING);
         } catch (PlaybackException e) {
             logger.error("Failed to play track at index {}", index, e);
@@ -286,6 +292,9 @@ public class PlayerController {
     public void setPlaylist(List<Track> tracks) {
         if (tracks != null && !tracks.isEmpty()) {
             playlistService.setTracks(tracks);
+            if (trackLoader != null) {
+                trackLoader.initialize(tracks);
+            }
             notifyPlaylistChanged(tracks);
             logger.info("Playlist set with {} tracks", tracks.size());
         }
@@ -349,6 +358,9 @@ public class PlayerController {
             List<Track> tracks = convertLibraryToTracks(library);
             if (!tracks.isEmpty()) {
                 playlistService.setTracks(tracks);
+                if (trackLoader != null) {
+                    trackLoader.initialize(tracks);
+                }
                 notifyPlaylistChanged(tracks);
                 notifyInfo("Loaded " + tracks.size() + " tracks from library");
             }
@@ -448,6 +460,57 @@ public class PlayerController {
         return libraryService.getLibrary();
     }
     
+    public void setResourceSavingMode(boolean enabled) {
+        if (trackLoader != null) {
+            trackLoader.setResourceSavingMode(enabled);
+            if (enabled) {
+                trackLoader.initialize(playlistService.getTracks());
+            }
+        }
+    }
+    
+    public boolean isResourceSavingMode() {
+        return trackLoader != null && trackLoader.isResourceSavingMode();
+    }
+    
+    public List<Track> getPreloadedTracks() {
+        if (trackLoader != null) {
+            return trackLoader.getPreloadedTracks();
+        }
+        return List.of();
+    }
+    
+    private void playTrackInternal(Track track) throws PlaybackException {
+        if (trackLoader != null) {
+            trackLoader.loadTrack(track);
+        } else {
+            audioService.play(track);
+        }
+        logger.info("Playing: {}", track.getTitle());
+    }
+    
+    private void managePreloadNext() {
+        if (trackLoader != null && trackLoader.isResourceSavingMode()) {
+            int currentIndex = playlistService.getCurrentIndex();
+            int playlistSize = playlistService.getSize();
+            trackLoader.advancePreload(currentIndex, playlistSize);
+        }
+    }
+    
+    private void managePreloadPrevious() {
+        if (trackLoader != null && trackLoader.isResourceSavingMode()) {
+            int targetIndex = playlistService.getCurrentIndex();
+            trackLoader.rewindPreload(targetIndex);
+        }
+    }
+    
+    private void managePreloadForCurrent() {
+        if (trackLoader != null && trackLoader.isResourceSavingMode()) {
+            int currentIndex = playlistService.getCurrentIndex();
+            trackLoader.rewindPreload(currentIndex);
+        }
+    }
+    
     private List<Track> convertLibraryToTracks(Library library) {
         return library.getEntries().stream()
                 .map(entry -> new Track(
@@ -462,6 +525,13 @@ public class PlayerController {
     }
 
     public void dispose() {
+        if (trackLoader != null && trackLoader instanceof AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                logger.debug("Error closing track loader", e);
+            }
+        }
         audioService.dispose();
         fileService.shutdown();
         if (libraryService != null) {
@@ -479,7 +549,7 @@ public class PlayerController {
             Track current = playlistService.getCurrentTrack();
             if (current != null) {
                 try {
-                    audioService.play(current);
+                    playTrackInternal(current);
                 } catch (PlaybackException e) {
                     logger.error("Failed to replay track", e);
                 }
